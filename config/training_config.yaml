@@ -1,0 +1,25 @@
+# Конфигурация для DoRA Fine-tuning
+
+# Базовые модели
+creator_model: "Qwen/Qwen2.5-72B-Instruct"
+logic_model: "Qwen/Qwen2.5-398B-Instruct"
+
+# Параметры LoRA/DoRA
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+
+# Параметры обучения
+num_epochs: 3
+batch_size: 4
+gradient_accumulation: 4
+learning_rate: 2e-4
+warmup_steps: 100
+
+# Оптимизация
+use_8bit: true
+use_gradient_checkpointing: true
+
+# Датасеты
+max_samples_per_dataset: 10000
+max_sequence_length: 2048
