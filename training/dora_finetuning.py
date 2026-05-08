@@ -36,73 +36,74 @@ class DoRATrainer:
     
     def prepare_creator_dataset(self) -> Dataset:
         """
-        Подготовка датасета для Творца (72B)
-        Фокус на креативных, неструктурированных данных
+        Подготовка датасета для Творца (72B) из папки data/
+        Загружает все JSONL файлы с префиксом 'left_' или 'creator_'
         """
-        logger.info("Подготовка датасета для Творца...")
+        logger.info("Подготовка датасета для Творца из data/...")
         
-        # Загружаем различные датасеты для креативности
-        datasets_to_mix = [
-            # Креативное письмо
-            ("roneneldan/TinyStories", "train[:10000]"),
-            # Научные гипотезы
-            ("scientific_papers", "arxiv:train[:5000]"),
-            # Мультимодальные описания
-            ("HuggingFaceM4/COCO", "train[:5000]")
-        ]
+        import glob
+        import json
         
         combined_data = []
+        data_dir = "data"
         
-        for dataset_name, split in datasets_to_mix:
+        # Ищем файлы для левого полушария (Творец)
+        pattern_files = glob.glob(os.path.join(data_dir, "left_*.jsonl")) + \
+                       glob.glob(os.path.join(data_dir, "creator_*.jsonl"))
+        
+        if not pattern_files:
+            logger.warning(f"Не найдено файлов датасетов в {data_dir}/ с префиксом 'left_' или 'creator_'")
+            logger.info("Создайте файлы датасетов в формате JSONL в папке data/")
+            return Dataset.from_list([])
+        
+        for filepath in pattern_files:
+            logger.info(f"Загрузка {filepath}...")
             try:
-                ds = load_dataset(dataset_name, split=split)
-                # Преобразуем в формат для обучения
-                for item in ds:
-                    # Извлекаем текст (зависит от структуры датасета)
-                    text = self._extract_text(item)
-                    if text:
-                        combined_data.append({
-                            "text": text,
-                            "source": dataset_name
-                        })
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.strip():
+                            data = json.loads(line)
+                            combined_data.append(data)
             except Exception as e:
-                logger.warning(f"Не удалось загрузить {dataset_name}: {e}")
+                logger.error(f"Ошибка загрузки {filepath}: {e}")
         
-        logger.info(f"Подготовлено {len(combined_data)} примеров для Творца")
+        logger.info(f"Подготовлено {len(combined_data)} примеров для Творца из {len(pattern_files)} файлов")
         return Dataset.from_list(combined_data)
     
     def prepare_logic_dataset(self) -> Dataset:
         """
-        Подготовка датасета для Логика (398B)
-        Фокус на структурированных данных, коде, логике
+        Подготовка датасета для Логика (398B) из папки data/
+        Загружает все JSONL файлы с префиксом 'right_' или 'logic_'
         """
-        logger.info("Подготовка датасета для Логика...")
+        logger.info("Подготовка датасета для Логика из data/...")
         
-        datasets_to_mix = [
-            # Код
-            ("codeparrot/github-code", "train[:20000]"),
-            # Логические цепочки
-            ("gsm8k", "train"),
-            # Документация
-            ("bigcode/the-stack-dedup", "train[:10000]")
-        ]
+        import glob
+        import json
         
         combined_data = []
+        data_dir = "data"
         
-        for dataset_name, split in datasets_to_mix:
+        # Ищем файлы для правого полушария (Логик)
+        pattern_files = glob.glob(os.path.join(data_dir, "right_*.jsonl")) + \
+                       glob.glob(os.path.join(data_dir, "logic_*.jsonl"))
+        
+        if not pattern_files:
+            logger.warning(f"Не найдено файлов датасетов в {data_dir}/ с префиксом 'right_' или 'logic_'")
+            logger.info("Создайте файлы датасетов в формате JSONL в папке data/")
+            return Dataset.from_list([])
+        
+        for filepath in pattern_files:
+            logger.info(f"Загрузка {filepath}...")
             try:
-                ds = load_dataset(dataset_name, split=split)
-                for item in ds:
-                    text = self._extract_text(item)
-                    if text:
-                        combined_data.append({
-                            "text": text,
-                            "source": dataset_name
-                        })
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.strip():
+                            data = json.loads(line)
+                            combined_data.append(data)
             except Exception as e:
-                logger.warning(f"Не удалось загрузить {dataset_name}: {e}")
+                logger.error(f"Ошибка загрузки {filepath}: {e}")
         
-        logger.info(f"Подготовлено {len(combined_data)} примеров для Логика")
+        logger.info(f"Подготовлено {len(combined_data)} примеров для Логика из {len(pattern_files)} файлов")
         return Dataset.from_list(combined_data)
     
     def _extract_text(self, item: dict) -> str:
