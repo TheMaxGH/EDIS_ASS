@@ -6,6 +6,20 @@
 
 ---
 
+## 📑 Содержание
+
+- [🌟 Что это?](#-что-это)
+- [🚀 Быстрый старт](#-быстрый-старт)
+- [📚 DoRA Fine-tuning](#-dora-fine-tuning) ⭐ **Важно для первого запуска!**
+- [📦 Компоненты системы](#-компоненты-системы)
+- [💻 Использование](#-использование)
+- [🏗️ Архитектура](#️-архитектура)
+- [🔧 Конфигурация](#-конфигурация)
+- [🐛 Отладка](#-отладка)
+- [📖 Документация](#-документация)
+
+---
+
 ## 🌟 Что это?
 
 EDIS - это продвинутая AI-система, объединяющая:
@@ -19,6 +33,8 @@ EDIS - это продвинутая AI-система, объединяющая
 ---
 
 ## 🚀 Быстрый старт
+
+> **⚠️ ВАЖНО**: Перед первым запуском рекомендуется выполнить DoRA fine-tuning для адаптации моделей под ваши задачи. См. раздел [📚 DoRA Fine-tuning](#-dora-fine-tuning) ниже.
 
 ### ⚡ Автоматический запуск (рекомендуется)
 
@@ -355,24 +371,291 @@ logic:
 
 ---
 
-## 📚 Обучение моделей
+## 📚 DoRA Fine-tuning
 
-### DoRA Fine-tuning
+### Что такое DoRA?
 
+**DoRA (Weight-Decomposed Low-Rank Adaptation)** - это продвинутый метод дообучения больших языковых моделей, который:
+- ⚡ **Эффективнее LoRA** - лучшее качество при тех же ресурсах
+- 💾 **Экономит память** - обучает только малую часть параметров
+- 🎯 **Адаптирует модели** под ваши специфичные задачи и данные
+- 🚀 **Оптимизирован для 8xH200** с DeepSpeed ZeRO-3 и Flash Attention 2
+
+### 📋 Системные требования для DoRA
+
+#### Минимальные требования:
+- **GPU**: 8x NVIDIA H200 (или 8x H100/A100 80GB)
+- **VRAM**: ~600+ ГБ суммарно
+- **RAM**: 256+ ГБ
+- **Диск**: 1+ ТБ свободного места
+- **NVLink**: Для быстрой коммуникации между GPU
+
+#### Программные требования:
+- Python 3.10+
+- CUDA 12.1+
+- PyTorch 2.4+
+- DeepSpeed 0.15+
+- Flash Attention 2.6+
+
+### 🚀 Пошаговая инструкция DoRA
+
+#### Шаг 1: Подготовка датасетов
+
+Создайте датасеты в формате JSONL в папке `data/`:
+
+**Для Творца (72B)** - креативные задачи, генерация идей:
 ```bash
-# Подготовьте датасеты в data/
-# left_*.jsonl или creator_*.jsonl - для Творца
-# right_*.jsonl или logic_*.jsonl - для Логика
-
-# Запустите обучение
-python training/dora_finetuning.py --model both
-
-# Или отдельно
-python training/dora_finetuning.py --model creator
-python training/dora_finetuning.py --model logic
+# Файлы должны начинаться с left_ или creator_
+data/left_creator_dataset.jsonl
+data/creator_ideas.jsonl
 ```
 
-Обученные модели сохраняются в `models/creator_finetuned/` и `models/logic_finetuned/`
+**Для Логика (397B)** - логика, планирование, верификация:
+```bash
+# Файлы должны начинаться с right_ или logic_
+data/right_logic_dataset.jsonl
+data/logic_reasoning.jsonl
+```
+
+**Формат JSONL** (каждая строка - отдельный JSON объект):
+```jsonl
+{"text": "Вопрос: Как работает квантовая запутанность?\nОтвет: Квантовая запутанность..."}
+{"text": "Задача: Напиши функцию сортировки\nРешение: def sort_array(arr):..."}
+{"content": "Пример кода на Python для анализа данных..."}
+```
+
+Поддерживаемые ключи: `text`, `content`, `code`, `question`, `answer`
+
+#### Шаг 2: Установка зависимостей
+
+```bash
+# Клонируйте репозиторий
+git clone <your-repo>
+cd EDIS_ASSISTANT
+
+# Создайте виртуальное окружение
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# или
+venv\Scripts\activate  # Windows
+
+# Установите все зависимости (включая DoRA)
+pip install -r requirements.txt
+
+# Проверьте установку ключевых библиотек
+python -c "import peft, deepspeed, flash_attn; print('✅ Все установлено!')"
+```
+
+#### Шаг 3: Настройка конфигурации
+
+Отредактируйте [`config/training_config.yaml`](config/training_config.yaml) при необходимости:
+
+```yaml
+# Базовые модели (будут скачаны автоматически)
+creator_model: "Qwen/Qwen2.5-72B-Instruct"
+logic_model: "Qwen/Qwen3.5-397B-A17B-FP8"
+
+# Параметры DoRA
+lora_r: 16              # Ранг адаптации (больше = качественнее, но медленнее)
+lora_alpha: 32          # Масштабирующий фактор
+lora_dropout: 0.05      # Dropout для регуляризации
+
+# Параметры обучения
+num_epochs: 3           # Количество эпох
+batch_size: 4           # Размер батча на GPU
+gradient_accumulation: 4 # Накопление градиентов
+learning_rate: 2e-4     # Скорость обучения
+```
+
+#### Шаг 4: Запуск DoRA обучения
+
+```bash
+# Обучить обе модели (Творец + Логик)
+python training/dora_finetuning.py --model both
+
+# Или обучить только Творца (72B)
+python training/dora_finetuning.py --model creator
+
+# Или только Логика (397B)
+python training/dora_finetuning.py --model logic
+
+# С кастомной конфигурацией
+python training/dora_finetuning.py --model both --config config/my_training_config.yaml
+```
+
+#### Шаг 5: Мониторинг обучения
+
+Во время обучения вы увидите:
+```
+[1/2] Обучение Творца (Qwen-72B)...
+Загрузка data/left_creator_dataset.jsonl...
+Подготовлено 5000 примеров для Творца из 1 файлов
+Начало обучения модели Qwen/Qwen2.5-72B-Instruct
+trainable params: 134,217,728 || all params: 72,704,000,000 || trainable%: 0.18%
+Запуск обучения...
+Epoch 1/3: 100%|████████| 312/312 [2:15:30<00:00, 26.05s/it]
+...
+```
+
+**TensorBoard** для визуализации:
+```bash
+tensorboard --logdir logs/tensorboard
+# Откройте http://localhost:6006
+```
+
+#### Шаг 6: Проверка результатов
+
+После завершения обучения модели сохраняются в:
+- `models/creator_finetuned/` - дообученный Творец
+- `models/logic_finetuned/` - дообученный Логик
+
+Структура:
+```
+models/
+├── creator_finetuned/
+│   ├── adapter_config.json
+│   ├── adapter_model.bin
+│   └── tokenizer files...
+└── logic_finetuned/
+    ├── adapter_config.json
+    ├── adapter_model.bin
+    └── tokenizer files...
+```
+
+### ⏱️ Время обучения (примерное)
+
+На 8x NVIDIA H200:
+- **Творец (72B)**: 2-6 часов (зависит от размера датасета)
+- **Логик (397B)**: 8-24 часа (зависит от размера датасета)
+- **Скачивание моделей**: 2-6 часов (первый раз)
+
+### 💾 Требования к диску
+
+- **Базовые модели**:
+  - Qwen2.5-72B: ~144 ГБ (или ~72 ГБ в 8-bit)
+  - Qwen3.5-397B-FP8: ~397 ГБ
+- **Датасеты**: зависит от ваших данных
+- **Чекпоинты**: ~10-50 ГБ во время обучения
+- **Итоговые адаптеры**: ~1-5 ГБ каждый
+
+**Итого**: ~1 ТБ рекомендуется
+
+### 🔧 Использование дообученных моделей
+
+После DoRA обучения обновите конфигурацию vLLM:
+
+**Вариант 1: Автоматическое использование**
+```bash
+# Система автоматически обнаружит дообученные модели
+python start_edis.py
+```
+
+**Вариант 2: Ручной запуск vLLM с адаптерами**
+```bash
+# Creator с DoRA адаптером
+python -m vllm.entrypoints.openai.api_server \
+    --model Qwen/Qwen2.5-72B-Instruct \
+    --enable-lora \
+    --lora-modules creator=models/creator_finetuned \
+    --tensor-parallel-size 2 \
+    --port 8001
+
+# Logic с DoRA адаптером
+CUDA_VISIBLE_DEVICES=2,3,4,5 python -m vllm.entrypoints.openai.api_server \
+    --model Qwen/Qwen3.5-397B-A17B-FP8 \
+    --enable-lora \
+    --lora-modules logic=models/logic_finetuned \
+    --tensor-parallel-size 4 \
+    --port 8002
+```
+
+### 🐛 Troubleshooting DoRA
+
+#### Проблема: Out of Memory (OOM)
+**Решение**:
+- Уменьшите `batch_size` в [`config/training_config.yaml`](config/training_config.yaml)
+- Увеличьте `gradient_accumulation`
+- Включите CPU offloading в [`config/deepspeed_config.json`](config/deepspeed_config.json)
+
+#### Проблема: Модели не скачиваются
+**Решение**:
+```bash
+# Установите HuggingFace CLI
+pip install huggingface-hub
+
+# Авторизуйтесь (если модели приватные)
+huggingface-cli login
+
+# Предварительно скачайте модели
+huggingface-cli download Qwen/Qwen2.5-72B-Instruct
+huggingface-cli download Qwen/Qwen3.5-397B-A17B-FP8
+```
+
+#### Проблема: Датасеты не найдены
+**Решение**:
+```bash
+# Проверьте наличие файлов
+ls -la data/
+
+# Должны быть файлы с правильными префиксами:
+# left_*.jsonl или creator_*.jsonl
+# right_*.jsonl или logic_*.jsonl
+```
+
+#### Проблема: DeepSpeed не работает
+**Решение**:
+```bash
+# Переустановите DeepSpeed
+pip uninstall deepspeed
+pip install deepspeed --no-cache-dir
+
+# Проверьте CUDA
+python -c "import torch; print(torch.cuda.is_available())"
+```
+
+### 📊 Оценка качества после DoRA
+
+После обучения протестируйте модели:
+
+```python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
+
+# Загрузка базовой модели
+base_model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2.5-72B-Instruct")
+
+# Загрузка DoRA адаптера
+model = PeftModel.from_pretrained(base_model, "models/creator_finetuned")
+
+# Тестирование
+tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-72B-Instruct")
+inputs = tokenizer("Напиши креативную историю про AI", return_tensors="pt")
+outputs = model.generate(**inputs, max_length=200)
+print(tokenizer.decode(outputs[0]))
+```
+
+### 🎯 Рекомендации по датасетам
+
+Для лучших результатов:
+- **Размер**: минимум 1000 примеров, оптимально 5000-10000
+- **Качество**: лучше меньше, но качественнее
+- **Разнообразие**: покрывайте разные типы задач
+- **Формат**: четкая структура вопрос-ответ или задача-решение
+- **Язык**: используйте тот язык, на котором будете работать
+
+### 🚀 Альтернатива: Без DoRA
+
+Если у вас нет 8xH200 или не хотите обучать модели:
+
+```bash
+# Просто запустите систему с базовыми моделями
+python start_edis.py
+
+# Система будет работать с оригинальными Qwen моделями
+# без дополнительной адаптации
+```
+
+Базовые модели Qwen уже очень мощные и справятся с большинством задач!
 
 ---
 
