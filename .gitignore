@@ -45,11 +45,11 @@ checkpoints/
 *.pt
 *.pth
 
-# Data
-data/
-*.jsonl
-*.csv
-*.parquet
+# Data (commented out for private repo)
+# data/
+# *.jsonl
+# *.csv
+# *.parquet
 
 # Qdrant
 qdrant_storage/
