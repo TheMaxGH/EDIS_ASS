@@ -9,7 +9,8 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     TrainingArguments,
-    Trainer
+    Trainer,
+    BitsAndBytesConfig
 )
 from peft import (
     LoraConfig,
@@ -60,10 +61,14 @@ class DoRATrainer:
             logger.info(f"Загрузка {filepath}...")
             try:
                 with open(filepath, 'r', encoding='utf-8') as f:
-                    for line in f:
+                    for i, line in enumerate(f, 1):
                         if line.strip():
-                            data = json.loads(line)
-                            combined_data.append(data)
+                            try:
+                                data = json.loads(line)
+                                combined_data.append(data)
+                            except json.JSONDecodeError as e:
+                                logger.warning(f"Пропуск строки {i} в {filepath}: {e}")
+                                continue
             except Exception as e:
                 logger.error(f"Ошибка загрузки {filepath}: {e}")
         
@@ -96,10 +101,14 @@ class DoRATrainer:
             logger.info(f"Загрузка {filepath}...")
             try:
                 with open(filepath, 'r', encoding='utf-8') as f:
-                    for line in f:
+                    for i, line in enumerate(f, 1):
                         if line.strip():
-                            data = json.loads(line)
-                            combined_data.append(data)
+                            try:
+                                data = json.loads(line)
+                                combined_data.append(data)
+                            except json.JSONDecodeError as e:
+                                logger.warning(f"Пропуск строки {i} в {filepath}: {e}")
+                                continue
             except Exception as e:
                 logger.error(f"Ошибка загрузки {filepath}: {e}")
         
@@ -132,18 +141,48 @@ class DoRATrainer:
         """
         logger.info(f"Начало обучения модели {model_name}")
         
-        # Загрузка модели и токенизатора
+        # Проверка доступности CUDA
+        if not torch.cuda.is_available():
+            logger.error("❌ CUDA недоступна! Обучение 72B модели требует GPU.")
+            logger.error("Проверьте:")
+            logger.error("  1. Установлены ли драйверы NVIDIA (версия 560+)")
+            logger.error("  2. Совместима ли версия PyTorch с вашими драйверами")
+            logger.error("  3. Доступны ли GPU через nvidia-smi")
+            raise RuntimeError("GPU required for training large models")
+        
+        gpu_count = torch.cuda.device_count()
+        logger.info(f"✅ Обнаружено GPU: {gpu_count}")
+        for i in range(gpu_count):
+            gpu_name = torch.cuda.get_device_name(i)
+            gpu_memory = torch.cuda.get_device_properties(i).total_memory / 1024**3
+            logger.info(f"  GPU {i}: {gpu_name} ({gpu_memory:.1f} GB)")
+        
+        # Загрузка токенизатора
+        logger.info("Загрузка токенизатора...")
         tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.bfloat16,
-            device_map="auto",
-            trust_remote_code=True,
-            load_in_8bit=True  # Квантование для экономии памяти
+        # Конфигурация 8-bit квантования для экономии памяти
+        logger.info("Настройка 8-bit квантования...")
+        quantization_config = BitsAndBytesConfig(
+            load_in_8bit=True,
+            bnb_8bit_compute_dtype=torch.bfloat16,
+            bnb_8bit_use_double_quant=True,  # Дополнительная оптимизация
+            llm_int8_threshold=6.0
         )
         
-        # Подготовка модели для обучения
+        # Загрузка модели с правильной конфигурацией
+        logger.info(f"Загрузка модели {model_name} в 8-bit режиме...")
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            quantization_config=quantization_config,
+            device_map="auto",  # Автоматическое распределение по GPU
+            trust_remote_code=True,
+            torch_dtype=torch.bfloat16,
+            attn_implementation="flash_attention_2"  # Flash Attention 2 для H200
+        )
+        
+        # Подготовка модели для обучения с квантованием
+        logger.info("Подготовка модели для k-bit обучения...")
         model = prepare_model_for_kbit_training(model)
         
         # Конфигурация DoRA
