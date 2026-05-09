@@ -9,14 +9,12 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     TrainingArguments,
-    Trainer,
-    BitsAndBytesConfig
+    Trainer
 )
 from peft import (
     LoraConfig,
     get_peft_model,
-    TaskType,
-    prepare_model_for_kbit_training
+    TaskType
 )
 from datasets import load_dataset, Dataset
 from loguru import logger
@@ -161,29 +159,21 @@ class DoRATrainer:
         logger.info("Загрузка токенизатора...")
         tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         
-        # Конфигурация 8-bit квантования для экономии памяти
-        logger.info("Настройка 8-bit квантования...")
-        quantization_config = BitsAndBytesConfig(
-            load_in_8bit=True,
-            bnb_8bit_compute_dtype=torch.bfloat16,
-            bnb_8bit_use_double_quant=True,  # Дополнительная оптимизация
-            llm_int8_threshold=6.0
-        )
+        # На 8xH200 (1.1 ТБ VRAM) НЕ НУЖНО квантование!
+        # Используем чистый BF16 для максимальной скорости и точности
+        logger.info(f"Загрузка модели {model_name} в режиме BF16 (оптимизировано для 8xH200)...")
+        logger.info("⚡ Квантование отключено - у вас достаточно памяти для полной точности!")
         
-        # Загрузка модели с правильной конфигурацией
-        logger.info(f"Загрузка модели {model_name} в 8-bit режиме...")
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            quantization_config=quantization_config,
-            device_map="auto",  # Автоматическое распределение по GPU
-            trust_remote_code=True,
             torch_dtype=torch.bfloat16,
+            trust_remote_code=True,
             attn_implementation="flash_attention_2"  # Flash Attention 2 для H200
+            # device_map НЕ ИСПОЛЬЗУЕМ - DeepSpeed сам управляет распределением!
         )
         
-        # Подготовка модели для обучения с квантованием
-        logger.info("Подготовка модели для k-bit обучения...")
-        model = prepare_model_for_kbit_training(model)
+        # Включаем gradient checkpointing для экономии памяти при обучении
+        model.gradient_checkpointing_enable()
         
         # Конфигурация DoRA
         lora_config = LoraConfig(
