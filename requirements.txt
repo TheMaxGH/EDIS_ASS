@@ -29,6 +29,7 @@ qdrant-client>=1.11.0
 sentence-transformers>=3.1.0
 
 # API & Tools
+openai>=1.50.0  # OpenAI SDK для vLLM API
 tavily-python>=0.5.0
 httpx>=0.27.0
 aiohttp>=3.10.0
@@ -42,3 +43,37 @@ prometheus-client>=0.21.0
 pydantic>=2.9.0
 pyyaml>=6.0.2
 rich>=13.8.0
+
+# Execution Layer - Code Sandbox
+docker>=7.1.0
+
+# Execution Layer - Browser Automation
+playwright>=1.47.0
+beautifulsoup4>=4.12.0
+
+# Execution Layer - Document Generation
+markdown>=3.7
+weasyprint>=62.3
+python-docx>=1.1.0
+
+# Execution Layer - Document Processing (RAG)
+PyPDF2>=3.0.0
+python-docx>=1.1.0
+
+# TTS - Voice Cloning & Speech Recognition
+openai-whisper>=20231117  # STT (Speech-to-Text)
+vosk>=0.3.45  # Alternative STT engine
+requests>=2.32.0
+soundfile>=0.12.1  # Audio file I/O
+librosa>=0.10.0  # Audio processing
+pydub>=0.25.1  # Audio manipulation
+ffmpeg-python>=0.2.0  # FFmpeg wrapper
+
+# Web Interface - Backend
+fastapi>=0.115.0
+uvicorn[standard]>=0.31.0
+websockets>=13.1
+python-multipart>=0.0.9
+
+# Web Interface - Frontend (для сборки)
+# Next.js устанавливается через npm в web/frontend/

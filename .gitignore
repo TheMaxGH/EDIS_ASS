@@ -87,3 +87,34 @@ htmlcov/
 
 # Generated scripts
 run_agent.py
+
+# Node.js
+node_modules/
+package-lock.json
+.next/
+out/
+*.tsbuildinfo
+
+# Database
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Audio files
+*.wav
+*.mp3
+*.ogg
+*.flac
+audio/
+
+# GPT-SoVITS
+GPT-SoVITS/
+
+# Backend data
+web/backend/data/
+web/backend/audio/
+web/backend/chats/
+
+# Reports (temporary)
+*REPORT*.md

@@ -44,7 +44,7 @@ class CreatorOutput(BaseModel):
 
 
 class LogicFeedback(BaseModel):
-    """Фидбек от Логика (Qwen-398B)"""
+    """Фидбек от Логика (Qwen3.5-397B-FP8)"""
     status: ConflictStatus
     feedback: str = Field(description="Детальный фидбек")
     logical_errors: Optional[List[str]] = Field(

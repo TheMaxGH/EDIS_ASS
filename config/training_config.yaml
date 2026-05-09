@@ -2,7 +2,7 @@
 
 # Базовые модели
 creator_model: "Qwen/Qwen2.5-72B-Instruct"
-logic_model: "Qwen/Qwen2.5-398B-Instruct"
+logic_model: "Qwen/Qwen3.5-397B-A17B-FP8"
 
 # Параметры LoRA/DoRA
 lora_r: 16

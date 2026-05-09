@@ -1,0 +1,130 @@
+# GPT-SoVITS TTS Configuration
+# Конфигурация для Text-to-Speech системы на базе GPT-SoVITS
+
+# Основные настройки
+server:
+  host: "0.0.0.0"
+  port: 9880
+  gpu_id: 6  # Выделенная GPU для TTS
+  workers: 1
+  timeout: 60
+
+# Пути к моделям
+models:
+  gpt_model: "GPT-SoVITS/pretrained_models/s1bert25hz-2kh-longer-epoch=68e-step=50232.ckpt"
+  sovits_model: "GPT-SoVITS/pretrained_models/s2G488k.pth"
+  
+  # Директория для пользовательских моделей (fine-tuned)
+  custom_models_dir: "models/voice"
+  
+  # Директория для референсных аудио
+  reference_audio_dir: "audio_cache/references"
+
+# Настройки генерации
+generation:
+  # Язык по умолчанию
+  default_language: "ru"
+  
+  # Поддерживаемые языки
+  supported_languages:
+    - "ru"  # Русский
+    - "en"  # Английский
+    - "zh"  # Китайский
+    - "ja"  # Японский
+  
+  # Параметры генерации
+  default_speed: 1.0  # Скорость речи (0.5-2.0)
+  default_temperature: 0.6  # Креативность (0.0-1.0)
+  
+  # Качество аудио
+  sample_rate: 32000  # Частота дискретизации
+  audio_format: "wav"  # Формат выходного аудио
+  
+  # Лимиты
+  max_text_length: 1000  # Максимальная длина текста
+  max_audio_duration: 300  # Максимальная длительность аудио (секунды)
+
+# Настройки клонирования голоса
+voice_cloning:
+  # Режим клонирования
+  mode: "zero-shot"  # zero-shot или fine-tuning
+  
+  # Требования к референсному аудио
+  min_audio_duration: 3  # Минимум 3 секунды
+  max_audio_duration: 60  # Максимум 60 секунд
+  recommended_duration: 10  # Рекомендуется 10-30 секунд
+  
+  # Fine-tuning параметры
+  fine_tuning:
+    enabled: false
+    epochs: 10
+    batch_size: 4
+    learning_rate: 0.0001
+    save_interval: 5
+
+# Кэширование
+cache:
+  enabled: true
+  directory: "audio_cache"
+  max_size_mb: 1000  # Максимальный размер кэша (MB)
+  ttl_hours: 24  # Время жизни кэша (часы)
+  cleanup_on_startup: false
+
+# Логирование
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "logs/gpt_sovits.log"
+  max_size_mb: 100
+  backup_count: 5
+
+# Производительность
+performance:
+  # Batch processing
+  batch_size: 1
+  
+  # GPU настройки
+  gpu_memory_fraction: 0.9  # Использовать 90% GPU памяти
+  mixed_precision: true  # FP16 для ускорения
+  
+  # Оптимизации
+  use_flash_attention: true
+  compile_model: false  # torch.compile (требует PyTorch 2.0+)
+
+# Безопасность
+security:
+  # Ограничения
+  rate_limit:
+    enabled: true
+    requests_per_minute: 60
+    requests_per_hour: 1000
+  
+  # Валидация
+  validate_audio_format: true
+  max_file_size_mb: 50
+
+# Интеграция с EDIS
+edis_integration:
+  # Автоматическая озвучка
+  auto_speak_enabled: false
+  auto_speak_importance: "high"  # low, medium, high
+  
+  # Голос по умолчанию
+  default_voice_id: null  # null = использовать базовую модель
+  
+  # Webhook для уведомлений
+  webhook_url: null
+  webhook_events:
+    - "training_started"
+    - "training_completed"
+    - "training_failed"
+
+# Экспериментальные функции
+experimental:
+  # Streaming TTS (в разработке)
+  streaming_enabled: false
+  
+  # Emotion control (в разработке)
+  emotion_control_enabled: false
+  
+  # Voice morphing (в разработке)
+  voice_morphing_enabled: false

@@ -1,6 +1,7 @@
 """
 Векторная память на базе Qdrant
 Хранение и поиск знаний для RAG
+Расширенная версия с поддержкой загрузки пользовательских документов
 """
 from typing import List, Optional, Dict, Any
 from qdrant_client import QdrantClient
@@ -10,6 +11,10 @@ from qdrant_client.models import (
 from sentence_transformers import SentenceTransformer
 from loguru import logger
 import uuid
+from pathlib import Path
+import PyPDF2
+import docx
+from datetime import datetime
 
 from core.schemas import KnowledgeEntry
 
@@ -252,3 +257,159 @@ class VectorMemory:
             })
         
         return formatted_results
+    
+    async def load_document(
+        self,
+        file_path: str,
+        chunk_size: int = 1000,
+        overlap: int = 200
+    ) -> List[str]:
+        """
+        Загрузка и индексация документа
+        Поддерживает PDF, DOCX, TXT, MD
+        
+        Args:
+            file_path: Путь к файлу
+            chunk_size: Размер чанка текста
+            overlap: Перекрытие между чанками
+        
+        Returns:
+            Список ID добавленных записей
+        """
+        path = Path(file_path)
+        
+        if not path.exists():
+            raise FileNotFoundError(f"Файл не найден: {file_path}")
+        
+        logger.info(f"Загрузка документа: {path.name}")
+        
+        # Извлекаем текст в зависимости от типа файла
+        if path.suffix.lower() == '.pdf':
+            text = self._extract_pdf(path)
+        elif path.suffix.lower() == '.docx':
+            text = self._extract_docx(path)
+        elif path.suffix.lower() in ['.txt', '.md']:
+            text = path.read_text(encoding='utf-8')
+        else:
+            raise ValueError(f"Неподдерживаемый формат: {path.suffix}")
+        
+        # Разбиваем на чанки
+        chunks = self._chunk_text(text, chunk_size, overlap)
+        logger.info(f"Документ разбит на {len(chunks)} чанков")
+        
+        # Создаем записи
+        entries = []
+        for i, chunk in enumerate(chunks):
+            entry = KnowledgeEntry(
+                content=chunk,
+                source=str(path),
+                timestamp=datetime.now().isoformat(),
+                metadata={
+                    "type": "user_document",
+                    "filename": path.name,
+                    "chunk_index": i,
+                    "total_chunks": len(chunks)
+                }
+            )
+            entries.append(entry)
+        
+        # Добавляем в векторную базу
+        ids = await self.add_entries(entries)
+        logger.info(f"Документ {path.name} успешно проиндексирован")
+        
+        return ids
+    
+    def _extract_pdf(self, path: Path) -> str:
+        """Извлечение текста из PDF"""
+        try:
+            text = ""
+            with open(path, 'rb') as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+                for page in pdf_reader.pages:
+                    text += page.extract_text() + "\n"
+            return text
+        except Exception as e:
+            logger.error(f"Ошибка чтения PDF: {e}")
+            raise
+    
+    def _extract_docx(self, path: Path) -> str:
+        """Извлечение текста из DOCX"""
+        try:
+            doc = docx.Document(path)
+            text = "\n".join([para.text for para in doc.paragraphs])
+            return text
+        except Exception as e:
+            logger.error(f"Ошибка чтения DOCX: {e}")
+            raise
+    
+    def _chunk_text(
+        self,
+        text: str,
+        chunk_size: int,
+        overlap: int
+    ) -> List[str]:
+        """
+        Разбиение текста на чанки с перекрытием
+        
+        Args:
+            text: Исходный текст
+            chunk_size: Размер чанка в символах
+            overlap: Перекрытие между чанками
+        
+        Returns:
+            Список чанков
+        """
+        chunks = []
+        start = 0
+        text_length = len(text)
+        
+        while start < text_length:
+            end = start + chunk_size
+            
+            # Пытаемся найти конец предложения
+            if end < text_length:
+                # Ищем ближайшую точку, восклицательный или вопросительный знак
+                for delimiter in ['. ', '! ', '? ', '\n\n']:
+                    delimiter_pos = text.rfind(delimiter, start, end)
+                    if delimiter_pos != -1:
+                        end = delimiter_pos + len(delimiter)
+                        break
+            
+            chunk = text[start:end].strip()
+            if chunk:
+                chunks.append(chunk)
+            
+            # Следующий чанк начинается с учетом перекрытия
+            start = end - overlap if end < text_length else text_length
+        
+        return chunks
+    
+    async def search_in_documents(
+        self,
+        query: str,
+        filename: Optional[str] = None,
+        limit: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        Поиск в загруженных пользовательских документах
+        
+        Args:
+            query: Поисковый запрос
+            filename: Фильтр по имени файла (опционально)
+            limit: Количество результатов
+        
+        Returns:
+            Список найденных чанков
+        """
+        filter_metadata = {"type": "user_document"}
+        
+        if filename:
+            filter_metadata["filename"] = filename
+        
+        results = await self.search(
+            query=query,
+            limit=limit,
+            filter_metadata=filter_metadata
+        )
+        
+        return results

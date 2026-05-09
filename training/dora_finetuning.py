@@ -72,7 +72,7 @@ class DoRATrainer:
     
     def prepare_logic_dataset(self) -> Dataset:
         """
-        Подготовка датасета для Логика (398B) из папки data/
+        Подготовка датасета для Логика (Qwen3.5-397B-FP8) из папки data/
         Загружает все JSONL файлы с префиксом 'right_' или 'logic_'
         """
         logger.info("Подготовка датасета для Логика из data/...")
@@ -241,8 +241,8 @@ class DoRATrainer:
             is_creator=True
         )
         
-        # 2. Обучение Логика (398B)
-        logger.info("\n[2/2] Обучение Логика (Qwen-398B)...")
+        # 2. Обучение Логика (Qwen3.5-397B-FP8)
+        logger.info("\n[2/2] Обучение Логика (Qwen3.5-397B-FP8)...")
         logic_dataset = self.prepare_logic_dataset()
         
         self.train_model(

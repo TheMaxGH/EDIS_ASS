@@ -1,0 +1,101 @@
+# vLLM Configuration для 8x H200
+# Оркестрация Qwen моделей с оптимальным распределением ресурсов
+
+# ============================================
+# Creator Model (Qwen2.5-72B-Instruct)
+# ============================================
+creator:
+  model_name: "Qwen/Qwen2.5-72B-Instruct"
+  
+  # GPU allocation
+  tensor_parallel_size: 2  # Используем 2 GPU (GPU 0-1)
+  pipeline_parallel_size: 1
+  
+  # Memory optimization
+  gpu_memory_utilization: 0.85  # 85% VRAM на модель
+  max_model_len: 32768  # Максимальная длина контекста
+  
+  # Performance
+  dtype: "bfloat16"  # BF16 для H200
+  enable_chunked_prefill: true
+  max_num_batched_tokens: 8192
+  max_num_seqs: 256
+  
+  # Flash Attention 2
+  use_flash_attn: true
+  
+  # Quantization (опционально для экономии памяти)
+  quantization: null  # или "awq", "gptq" если нужно
+  
+  # API settings
+  host: "0.0.0.0"
+  port: 8001
+  api_key: "${CREATOR_API_KEY}"
+  
+  # Trust remote code
+  trust_remote_code: true
+
+# ============================================
+# Logic Model (Qwen3.5-397B-A17B-FP8)
+# ============================================
+logic:
+  # Используем Qwen3.5-397B-A17B-FP8 (FP8 квантизация для оптимизации памяти)
+  model_name: "Qwen/Qwen3.5-397B-A17B-FP8"
+  
+  # GPU allocation
+  tensor_parallel_size: 4  # Используем 4 GPU (GPU 2-5)
+  pipeline_parallel_size: 1
+  
+  # Memory optimization
+  gpu_memory_utilization: 0.90  # 90% VRAM (большая модель)
+  max_model_len: 32768
+  
+  # Performance
+  dtype: "bfloat16"
+  enable_chunked_prefill: true
+  max_num_batched_tokens: 8192
+  max_num_seqs: 128  # Меньше параллельных запросов для большой модели
+  
+  # Flash Attention 2
+  use_flash_attn: true
+  
+  # Quantization
+  quantization: null
+  
+  # API settings
+  host: "0.0.0.0"
+  port: 8002
+  api_key: "${LOGIC_API_KEY}"
+  
+  trust_remote_code: true
+
+# ============================================
+# Resource Allocation Summary
+# ============================================
+# GPU 0-1: Creator (72B) - 2x H200 = ~160GB VRAM
+# GPU 2-5: Logic (397B-FP8) - 4x H200 = ~320GB VRAM
+# GPU 6: GPT-SoVITS TTS - 1x H200 = ~80GB VRAM
+# GPU 7: Browser, Sandbox, Other tasks - 1x H200 = ~80GB VRAM
+#
+# Total: 8x H200 = ~640GB VRAM
+#
+# Примечание: Qwen3.5-397B-A17B-FP8 использует FP8 квантизацию,
+# что позволяет уместить 397B параметров в 4x H200 (~320GB)
+
+# ============================================
+# Additional Settings
+# ============================================
+global:
+  # Logging
+  log_level: "INFO"
+  log_requests: true
+  
+  # Monitoring
+  enable_metrics: true
+  metrics_port: 9090
+  
+  # NCCL для NVLink
+  nccl_socket_ifname: "eth0"
+  
+  # Distributed settings
+  distributed_executor_backend: "ray"  # или "mp" для multiprocessing
